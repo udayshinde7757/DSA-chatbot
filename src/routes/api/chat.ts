@@ -27,7 +27,7 @@ export const Route = createFileRoute("/api/chat")({
           const result = streamText({
             model,
             system: DSA_SYSTEM_PROMPT,
-            messages: convertToModelMessages(body.messages as UIMessage[]),
+            messages: await convertToModelMessages(body.messages as UIMessage[]),
           });
 
           return result.toUIMessageStreamResponse({
