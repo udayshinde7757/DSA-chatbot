@@ -367,7 +367,8 @@ function ChatSurface({
           </div>
         </footer>
       </main>
-    </div>
+    </>
+
   );
 }
 
