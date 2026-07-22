@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { convertToModelMessages, streamText, type UIMessage } from "ai";
+import { createOpenAICompatible } from '@ai-sdk/openai-compatible';
 
-import { createLovableAiGatewayProvider } from "@/lib/ai-gateway.server";
 import { DSA_SYSTEM_PROMPT } from "@/lib/system-prompt";
 
 type ChatRequestBody = { messages?: unknown };
@@ -15,13 +15,17 @@ export const Route = createFileRoute("/api/chat")({
           return new Response("Messages are required", { status: 400 });
         }
 
-        const key = process.env.LOVABLE_API_KEY;
+        const key = process.env.OPENROUTER_API_KEY;
         if (!key) {
-          return new Response("Missing LOVABLE_API_KEY", { status: 500 });
+          return new Response("Missing OPENROUTER_API_KEY", { status: 500 });
         }
 
-        const gateway = createLovableAiGatewayProvider(key);
-        const model = gateway("openai/gpt-5.5");
+        const openrouter = createOpenAICompatible({
+          name: 'openrouter',
+          baseURL: 'https://openrouter.ai/api/v1',
+          apiKey: key,
+        });
+        const model = openrouter("google/gemma-4-26b-a4b-it:free");
 
         try {
           const result = streamText({
