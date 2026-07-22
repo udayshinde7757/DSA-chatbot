@@ -57,9 +57,9 @@
 :root {
   --radius: 0.5rem;
 
-  --background: oklch(0.18 0.005 60);        /* #1a1a1a */
+  --background: oklch(0.18 0.005 60); /* #1a1a1a */
   --foreground: oklch(0.94 0.005 80);
-  --surface: oklch(0.22 0.005 60);           /* #2d2d2d */
+  --surface: oklch(0.22 0.005 60); /* #2d2d2d */
   --surface-elevated: oklch(0.27 0.006 60);
 
   --card: oklch(0.22 0.005 60);
@@ -67,7 +67,7 @@
   --popover: oklch(0.22 0.005 60);
   --popover-foreground: oklch(0.94 0.005 80);
 
-  --primary: oklch(0.68 0.17 40);            /* #e85d3a ember */
+  --primary: oklch(0.68 0.17 40); /* #e85d3a ember */
   --primary-foreground: oklch(0.14 0.005 60);
   --ember: oklch(0.68 0.17 40);
   --ember-glow: oklch(0.78 0.15 45);
@@ -137,13 +137,21 @@
 }
 
 @utility ring-ember {
-  box-shadow: 0 0 0 1px oklch(0.68 0.17 40 / 40%), 0 12px 40px -12px oklch(0.68 0.17 40 / 45%);
+  box-shadow:
+    0 0 0 1px oklch(0.68 0.17 40 / 40%),
+    0 12px 40px -12px oklch(0.68 0.17 40 / 45%);
 }
 
 /* Blinking terminal caret */
 @keyframes caret-blink {
-  0%, 60% { opacity: 1; }
-  61%, 100% { opacity: 0; }
+  0%,
+  60% {
+    opacity: 1;
+  }
+  61%,
+  100% {
+    opacity: 0;
+  }
 }
 .caret::after {
   content: "▌";

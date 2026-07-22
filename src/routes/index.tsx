@@ -329,11 +329,19 @@ function ChatSurface({
               </div>
               <PromptInputFooter className="justify-between border-t border-border/60 px-3 py-2">
                 <span className="font-mono text-[0.68rem] text-muted-foreground/80">
-                  <kbd className="rounded border border-border/70 bg-background/70 px-1 py-0.5">Enter</kbd> send
+                  <kbd className="rounded border border-border/70 bg-background/70 px-1 py-0.5">
+                    Enter
+                  </kbd>{" "}
+                  send
                   <span className="mx-2">·</span>
-                  <kbd className="rounded border border-border/70 bg-background/70 px-1 py-0.5">Shift</kbd>
+                  <kbd className="rounded border border-border/70 bg-background/70 px-1 py-0.5">
+                    Shift
+                  </kbd>
                   +
-                  <kbd className="rounded border border-border/70 bg-background/70 px-1 py-0.5">↵</kbd> newline
+                  <kbd className="rounded border border-border/70 bg-background/70 px-1 py-0.5">
+                    ↵
+                  </kbd>{" "}
+                  newline
                 </span>
                 <PromptInputSubmit
                   status={status}
@@ -368,14 +376,11 @@ function ChatSurface({
         </footer>
       </main>
     </>
-
   );
 }
 
 function ChatMessage({ message }: { message: UIMessage }) {
-  const text = message.parts
-    .map((part) => (part.type === "text" ? part.text : ""))
-    .join("");
+  const text = message.parts.map((part) => (part.type === "text" ? part.text : "")).join("");
 
   if (message.role === "user") {
     return (
@@ -417,8 +422,8 @@ function EmptyState({ onPick }: { onPick: (text: string) => void }) {
         <span className="caret" />
       </h1>
       <p className="mt-3 max-w-md font-mono text-sm text-muted-foreground">
-        <span className="text-ember">// </span>a coder-friendly DSA copilot. drop a problem, ask about complexity,
-        or riff on data structures.
+        <span className="text-ember">// </span>a coder-friendly DSA copilot. drop a problem, ask
+        about complexity, or riff on data structures.
       </p>
 
       <div className="mt-8 grid w-full max-w-2xl grid-cols-1 gap-2 sm:grid-cols-2">
@@ -430,9 +435,7 @@ function EmptyState({ onPick }: { onPick: (text: string) => void }) {
           >
             <div className="flex items-center justify-between font-mono text-[0.65rem] uppercase tracking-[0.16em] text-muted-foreground">
               <span>#{prompt.tag}</span>
-              <span className="text-ember opacity-0 transition group-hover:opacity-100">
-                run →
-              </span>
+              <span className="text-ember opacity-0 transition group-hover:opacity-100">run →</span>
             </div>
             <p className="mt-1.5 font-mono text-sm text-foreground/90">{prompt.label}</p>
           </button>

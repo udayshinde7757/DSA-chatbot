@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { convertToModelMessages, streamText, type UIMessage } from "ai";
-import { createOpenAICompatible } from '@ai-sdk/openai-compatible';
+import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
 
 import { DSA_SYSTEM_PROMPT } from "@/lib/system-prompt";
 
@@ -21,8 +21,8 @@ export const Route = createFileRoute("/api/chat")({
         }
 
         const openrouter = createOpenAICompatible({
-          name: 'openrouter',
-          baseURL: 'https://openrouter.ai/api/v1',
+          name: "openrouter",
+          baseURL: "https://openrouter.ai/api/v1",
           apiKey: key,
         });
         const model = openrouter("google/gemma-4-26b-a4b-it:free");
