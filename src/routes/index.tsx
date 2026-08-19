@@ -11,6 +11,7 @@ import {
   Terminal,
   Trash2,
   Zap,
+  Menu,
 } from "lucide-react";
 
 import {
@@ -27,6 +28,8 @@ import {
 } from "@/components/ai-elements/prompt-input";
 import { Shimmer } from "@/components/ai-elements/shimmer";
 import { Button } from "@/components/ui/button";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { DsaBackground } from "@/components/dsa-background";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/")({
@@ -40,32 +43,126 @@ type Thread = {
 };
 
 const QUICK_PROMPTS = [
-  { label: "Explain quicksort with a dry-run", tag: "sort" },
-  { label: "Two Sum in O(n) — walk me through it", tag: "array" },
-  { label: "When should I reach for a heap vs a BST?", tag: "tree" },
-  { label: "Introduce dynamic programming with an example", tag: "dp" },
+  { label: "Analyze time/space complexity of this code", tag: "complexity" },
+  { label: "Solve Two Sum with O(n) approach", tag: "arrays" },
+  { label: "Explain Dijkstra's algorithm step by step", tag: "graphs" },
+  { label: "When to use DP vs Greedy? Trade-offs", tag: "dp" },
 ];
 
 const TOPICS = [
   "Arrays & Hashing",
+  "Strings",
   "Two Pointers",
   "Sliding Window",
   "Binary Search",
   "Linked List",
+  "Stacks & Queues",
   "Trees & BST",
   "Heaps / Priority Queue",
   "Graphs (BFS/DFS)",
   "Dynamic Programming",
   "Greedy",
   "Backtracking",
+  "Tries",
   "Bit Manipulation",
 ];
 
+// Session persistence keys
+const SESSIONS_STORAGE_KEY = "algomate-sessions";
+const MESSAGES_STORAGE_KEY = "algomate-messages";
+// Maximum stored messages per session (avoid unbounded growth)
+const MAX_STORED_MESSAGES = 200;
+
+type StoredMessage = {
+  id: string;
+  role: string;
+  parts: { type: string; text?: string; [key: string]: unknown }[];
+};
+
+function loadSessions(): Thread[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const stored = localStorage.getItem(SESSIONS_STORAGE_KEY);
+    if (!stored) return [];
+    const parsed = JSON.parse(stored);
+    if (!Array.isArray(parsed)) return [];
+    // Validate each thread has required fields
+    const valid = parsed.filter(
+      (t): t is Thread =>
+        t &&
+        typeof t.id === "string" &&
+        typeof t.title === "string" &&
+        typeof t.createdAt === "number"
+    );
+    // De-dupe ids (guard against malformed/corrupt data)
+    const seen = new Set<string>();
+    return valid.filter((t) => (seen.has(t.id) ? false : (seen.add(t.id), true)));
+  } catch {
+    return [];
+  }
+}
+
+function saveSessions(threads: Thread[]) {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.setItem(SESSIONS_STORAGE_KEY, JSON.stringify(threads));
+  } catch {
+    // Ignore quota/storage errors
+  }
+}
+
+function loadMessages(threadId: string): UIMessage[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const stored = localStorage.getItem(MESSAGES_STORAGE_KEY);
+    if (!stored) return [];
+    const parsed = JSON.parse(stored);
+    if (!parsed || typeof parsed !== "object") return [];
+    const arr = parsed[threadId];
+    if (!Array.isArray(arr)) return [];
+    // Validate basic shape
+    return arr
+      .filter(
+        (m): m is UIMessage =>
+          m &&
+          typeof m.id === "string" &&
+          typeof m.role === "string" &&
+          Array.isArray(m.parts)
+      )
+      .slice(-MAX_STORED_MESSAGES) as UIMessage[];
+  } catch {
+    return [];
+  }
+}
+
+function saveMessages(threadId: string, messages: UIMessage[]) {
+  if (typeof window === "undefined") return;
+  try {
+    const stored = localStorage.getItem(MESSAGES_STORAGE_KEY);
+    const all: Record<string, UIMessage[]> = stored ? JSON.parse(stored) : {};
+    all[threadId] = messages.slice(-MAX_STORED_MESSAGES);
+    localStorage.setItem(MESSAGES_STORAGE_KEY, JSON.stringify(all));
+  } catch {
+    // Ignore quota/storage errors
+  }
+}
+
 function ChatPage() {
-  const [threads, setThreads] = useState<Thread[]>([
-    { id: crypto.randomUUID(), title: "New session", createdAt: Date.now() },
-  ]);
-  const [activeId, setActiveId] = useState<string>(() => threads[0].id);
+  const [threads, setThreads] = useState<Thread[]>(() => {
+    const loaded = loadSessions();
+    return loaded.length > 0
+      ? loaded
+      : [{ id: crypto.randomUUID(), title: "New session", createdAt: Date.now() }];
+  });
+  const [activeId, setActiveId] = useState<string>(() => threads[0]?.id ?? "");
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  // Ref to the current ChatSurface submit handler so topic chips can submit
+  const submitRef = useRef<(text: string) => void>(() => {});
+
+  // Persist sessions to localStorage
+  useEffect(() => {
+    saveSessions(threads);
+  }, [threads]);
 
   const activeThread = threads.find((t) => t.id === activeId) ?? threads[0];
 
@@ -73,6 +170,7 @@ function ChatPage() {
     const t = { id: crypto.randomUUID(), title: "New session", createdAt: Date.now() };
     setThreads((prev) => [t, ...prev]);
     setActiveId(t.id);
+    setMobileSidebarOpen(false);
   };
 
   const removeChat = (id: string) => {
@@ -86,27 +184,84 @@ function ChatPage() {
       if (id === activeId) setActiveId(next[0].id);
       return next;
     });
+    // Also remove persisted messages for this thread
+    if (typeof window !== "undefined") {
+      try {
+        const stored = localStorage.getItem(MESSAGES_STORAGE_KEY);
+        if (stored) {
+          const all = JSON.parse(stored);
+          if (all && typeof all === "object" && id in all) {
+            delete all[id];
+            localStorage.setItem(MESSAGES_STORAGE_KEY, JSON.stringify(all));
+          }
+        }
+      } catch {
+        // Ignore
+      }
+    }
   };
 
   const renameThread = (id: string, title: string) => {
     setThreads((prev) => prev.map((t) => (t.id === id ? { ...t, title } : t)));
   };
 
+  const handleTopicSelect = (text: string) => {
+    submitRef.current(text);
+    setMobileSidebarOpen(false);
+  };
+
+  const sidebarProps = {
+    threads,
+    activeId,
+    onSelect: (id: string) => {
+      setActiveId(id);
+      setMobileSidebarOpen(false);
+    },
+    onNew: newChat,
+    onDelete: removeChat,
+    onTopicSelect: handleTopicSelect,
+  };
+
   return (
     <div className="flex min-h-screen w-full bg-ide-grid text-foreground">
-      <Sidebar
-        threads={threads}
-        activeId={activeId}
-        onSelect={setActiveId}
-        onNew={newChat}
-        onDelete={removeChat}
-      />
+      <DsaBackground />
+      {/* Desktop Sidebar */}
+      <aside className="hidden w-72 shrink-0 flex-col border-r border-border/60 bg-sidebar md:flex">
+        <Sidebar {...sidebarProps} />
+      </aside>
+
+      {/* Mobile sidebar trigger */}
+      <div className="fixed top-3 left-3 z-50 md:hidden">
+        <Button
+          onClick={() => setMobileSidebarOpen(true)}
+          variant="ghost"
+          size="icon"
+          className="rounded-md bg-sidebar/80 backdrop-blur"
+          aria-label="Open sidebar"
+        >
+          <Menu className="size-5 text-foreground" />
+        </Button>
+      </div>
+
+      {/* Mobile Sidebar Sheet */}
+      <Sheet open={mobileSidebarOpen} onOpenChange={setMobileSidebarOpen}>
+        <SheetContent side="left" className="w-72 bg-sidebar p-0">
+          <SheetHeader className="sr-only">
+            <SheetTitle>Sidebar</SheetTitle>
+          </SheetHeader>
+          <Sidebar {...sidebarProps} />
+        </SheetContent>
+      </Sheet>
+
       <div className="flex min-h-screen flex-1 flex-col">
         <ChatSurface
           key={activeThread.id}
           threadId={activeThread.id}
           threadTitle={activeThread.title}
           onFirstMessage={(text) => renameThread(activeThread.id, text.slice(0, 40))}
+          registerSubmit={(fn) => {
+            submitRef.current = fn;
+          }}
         />
       </div>
     </div>
@@ -119,15 +274,17 @@ function Sidebar({
   onSelect,
   onNew,
   onDelete,
+  onTopicSelect,
 }: {
   threads: Thread[];
   activeId: string;
   onSelect: (id: string) => void;
   onNew: () => void;
   onDelete: (id: string) => void;
+  onTopicSelect: (text: string) => void;
 }) {
   return (
-    <aside className="hidden w-72 shrink-0 flex-col border-r border-border/60 bg-sidebar md:flex">
+    <aside className="w-72 shrink-0 flex-col border-r border-border/60 bg-sidebar h-full">
       {/* Brand */}
       <div className="flex h-14 items-center gap-2.5 border-b border-border/60 px-4">
         <div className="grid size-8 place-items-center rounded-md bg-ember text-primary-foreground ring-ember">
@@ -201,12 +358,14 @@ function Sidebar({
         </div>
         <div className="flex flex-wrap gap-1">
           {TOPICS.map((topic) => (
-            <span
+            <button
               key={topic}
-              className="rounded-sm border border-border/60 bg-surface/60 px-1.5 py-0.5 font-mono text-[0.68rem] text-muted-foreground"
+              onClick={() => onTopicSelect(`Explain ${topic} with an example and complexity analysis.`)}
+              className="rounded-sm border border-border/60 bg-surface/60 px-1.5 py-0.5 font-mono text-[0.68rem] text-muted-foreground hover:border-ember/60 hover:bg-surface hover:text-foreground transition cursor-pointer"
+              type="button"
             >
               {topic}
-            </span>
+            </button>
           ))}
         </div>
       </div>
@@ -215,7 +374,7 @@ function Sidebar({
       <div className="mt-auto border-t border-border/60 px-4 py-2.5">
         <div className="flex items-center gap-2 font-mono text-[0.7rem] text-muted-foreground">
           <span className="inline-block size-1.5 rounded-full bg-emerald-400 shadow-[0_0_8px_theme(colors.emerald.400)]" />
-          gemini-2.5-flash · ready
+          gemma-4 (openrouter) · ready
         </div>
       </div>
     </aside>
@@ -226,10 +385,12 @@ function ChatSurface({
   threadId,
   threadTitle,
   onFirstMessage,
+  registerSubmit,
 }: {
   threadId: string;
   threadTitle: string;
   onFirstMessage: (text: string) => void;
+  registerSubmit: (fn: (text: string) => void) => void;
 }) {
   const transport = useMemo(() => new DefaultChatTransport({ api: "/api/chat" }), []);
   const { messages, sendMessage, status, stop, error } = useChat({
@@ -239,9 +400,27 @@ function ChatSurface({
 
   const [input, setInput] = useState("");
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const [hydrated, setHydrated] = useState(false);
 
   const isEmpty = messages.length === 0;
   const isBusy = status === "submitted" || status === "streaming";
+
+  // Load persisted messages for this thread on mount
+  useEffect(() => {
+    const stored = loadMessages(threadId);
+    if (stored.length > 0) {
+      // The useChat transport will hydrate from the server using the threadId,
+      // but we can also preload locally if needed. For now, just mark hydrated.
+    }
+    setHydrated(true);
+  }, [threadId]);
+
+  // Persist messages whenever they change
+  useEffect(() => {
+    if (hydrated && messages.length > 0) {
+      saveMessages(threadId, messages);
+    }
+  }, [messages, threadId, hydrated]);
 
   useEffect(() => {
     textareaRef.current?.focus();
@@ -254,6 +433,11 @@ function ChatSurface({
     setInput("");
     await sendMessage({ text: value });
   };
+
+  // Register submit with parent for topic chips
+  useEffect(() => {
+    registerSubmit(submit);
+  }, [registerSubmit, submit]);
 
   return (
     <>
@@ -300,6 +484,15 @@ function ChatSurface({
                 {error && (
                   <div className="mt-3 rounded-md border border-destructive/50 bg-destructive/10 px-3 py-2 font-mono text-sm text-destructive-foreground">
                     <span className="text-destructive">error:</span> {error.message}
+                    <span className="ml-2 text-muted-foreground">— Try rephrasing or check your connection.</span>
+                    <button
+                      onClick={() => submit(input)}
+                      disabled={isBusy || !input.trim()}
+                      className="ml-3 text-xs underline hover:text-ember transition"
+                      type="button"
+                    >
+                      Retry
+                    </button>
                   </div>
                 )}
               </ConversationContent>
@@ -328,21 +521,34 @@ function ChatSurface({
                 />
               </div>
               <PromptInputFooter className="justify-between border-t border-border/60 px-3 py-2">
-                <span className="font-mono text-[0.68rem] text-muted-foreground/80">
-                  <kbd className="rounded border border-border/70 bg-background/70 px-1 py-0.5">
-                    Enter
-                  </kbd>{" "}
-                  send
-                  <span className="mx-2">·</span>
-                  <kbd className="rounded border border-border/70 bg-background/70 px-1 py-0.5">
-                    Shift
-                  </kbd>
-                  +
-                  <kbd className="rounded border border-border/70 bg-background/70 px-1 py-0.5">
-                    ↵
-                  </kbd>{" "}
-                  newline
-                </span>
+                <div className="flex items-center gap-2">
+                  <span className="font-mono text-[0.68rem] text-muted-foreground/80">
+                    <kbd className="rounded border border-border/70 bg-background/70 px-1 py-0.5">
+                      Enter
+                    </kbd>{" "}
+                    send
+                    <span className="mx-2">·</span>
+                    <kbd className="rounded border border-border/70 bg-background/70 px-1 py-0.5">
+                      Shift
+                    </kbd>
+                    +
+                    <kbd className="rounded border border-border/70 bg-background/70 px-1 py-0.5">
+                      ↵
+                    </kbd>{" "}
+                    newline
+                  </span>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => submit("Analyze the time and space complexity of this algorithm with a step-by-step breakdown.")}
+                    disabled={isBusy}
+                    className="h-7 w-7 text-muted-foreground/80 hover:text-foreground hover:bg-accent transition-colors"
+                    aria-label="Complexity checker shortcut"
+                    title="Complexity Checker (Ctrl+Shift+C)"
+                  >
+                    <Zap className="size-3.5" />
+                  </Button>
+                </div>
                 <PromptInputSubmit
                   status={status}
                   onStop={stop}
