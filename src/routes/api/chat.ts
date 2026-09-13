@@ -3,6 +3,7 @@ import { convertToModelMessages, streamText, type UIMessage } from "ai";
 import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
 
 import { DSA_SYSTEM_PROMPT } from "@/lib/system-prompt";
+import { MODELS, OPENROUTER_BASE_URL, GEMINI_OPENAI_BASE_URL } from "@/lib/models";
 
 type ChatMessage = {
   role?: unknown;
@@ -12,9 +13,8 @@ type ChatMessage = {
 
 type ChatRequestBody = { messages?: unknown };
 
-const OPENROUTER_MODEL = "google/gemma-4-26b-a4b-it:free";
-const GEMINI_MODEL = "gemini-3.6-flash";
-const GEMINI_OPENAI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai";
+const OPENROUTER_MODEL = MODELS.primary.id;
+const GEMINI_MODEL = MODELS.fallback.id;
 const FALLBACK_ERROR_PATTERNS = [
   "rate limit",
   "rate_limit",
@@ -142,7 +142,7 @@ export const Route = createFileRoute("/api/chat")({
 
         const openrouter = createOpenAICompatible({
           name: "openrouter",
-          baseURL: "https://openrouter.ai/api/v1",
+          baseURL: OPENROUTER_BASE_URL,
           apiKey: key,
           fetch: createOpenRouterFetchWithGeminiFallback(),
         });
@@ -154,7 +154,7 @@ export const Route = createFileRoute("/api/chat")({
             system: DSA_SYSTEM_PROMPT,
             messages: await convertToModelMessages(body.messages as UIMessage[]),
             temperature: 0.4,
-            maxTokens: 2048,
+            maxOutputTokens: 2048,
           });
 
           return result.toUIMessageStreamResponse({
