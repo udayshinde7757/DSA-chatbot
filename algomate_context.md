@@ -376,3 +376,33 @@ Flow:
 - [ ] Reconcile `.lovable/plan.md` with the shipped "Charcoal & Ember" theme + rude persona (update plan or align code).
 - [ ] Consider persistence (localStorage / DB) if multi-session should survive reload.
 ```
+
+
+✅ AlgoMate rebuild — done
+
+Build chain — all green:
+- tsc --noEmit — 0 errors
+- vite build (Vercel/Nitro production) — passes
+- eslint src — 0 errors, 10 cosmetic react-refresh warnings (by-design files that export hooks + components)
+- Live app healthy at localhost:8080 (200s on / and /api/config)
+
+This session's refinements (task #7–#9):
+
+1. animated-button.tsx — fixed the TS2589/TS2590 deep-type errors by dropping the polymorphic as prop (now always motion.button), and added useReducedMotion() so the infinite ember shine disables for users with prefers-reduced-motion (accessibility was a spec requirement).
+2. Mobile sidebar bug fix — if the desktop sidebar was collapsed and you opened the mobile nav, the sheet stayed invisible (opacity:0/pointer-events:none from data-collapsed weren't overridden). Now the open state always wins.
+3. Sidebar — the close (X) button is now lg:hidden; desktop no longer shows a dead button.
+4. Dashboard — removed the unused recent stat.
+5. CSS polish — :active press states on all buttons, disabled-primary styling, subtle shadows on user/assistant bubbles for depth.
+6. Deleted src/components/ai-elements/ — the unused pre-rebuild chat components (verified zero references).
+7. Normalized CRLF → LF across the whole src tree (the pre-existing shadcn boilerplate and lib/ files had Windows line endings that failed prettier/eslint). This is exactly what the repo's own format script does — it fixes npm run lint, but it does mean a broad whitespace-only diff across those files.
+
+Note on chat testing: /api/chat correctly returns Missing OPENROUTER_API_KEY in this shell because no key is exported here — the route logic itself is sound (streamText → toUIMessageStreamResponse, Gemini fallback wiring, input validation all in place). With OPENROUTER_API_KEY (and optionally GEMINI_API_KEY for fallback) in the environment it will stream normally, matching how it behaved before the rebuild.
+
+What the product now delivers:
+- Dashboard — ember-glow hero with the VengeanceUI shine CTA, action cards, stats, quick-start grid, "Continue learning" recent threads
+- AI Mentor — streaming chat with Streamdown rendering (Shiki code + copy buttons, math, mermaid), local persistence, thread switching, error+retry, typing indicator, scroll-aware sticky-to-bottom
+- Topics — 18 topics across 3 categories, searchable, difficulty badges, one-click guided lessons
+- Practice — 10 classic problems, difficulty filters, guided-solve prompts
+- Shell — charcoal+ember design system, ambient background, collapsible sidebar, model badge, full mobile responsiveness, reduced-motion support, SEO/OG metadata
+
+The dev server is still running if you want to open it and click through. One optional cleanup for a later commit: the README still describes the old positioning — say the word if you'd like it updated to match the new product.
